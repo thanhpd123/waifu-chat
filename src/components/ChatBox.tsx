@@ -11,6 +11,7 @@ export default function ChatBox() {
     const [input, setInput] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [panelHeight, setPanelHeight] = useState<number>(() => (window.innerWidth < 768 ? 150 : 60));
+    const [focused, setFocused] = useState<boolean>(false);
 
     useEffect(() => {
         const onResize = () => setPanelHeight(window.innerWidth < 768 ? 150 : 60);
@@ -40,31 +41,35 @@ export default function ChatBox() {
             maxWidth: '600px',
             zIndex: 10,
         }}>
-            <div style={{ height: `${panelHeight}px`, overflowY: 'auto', background: 'rgba(0,0,0,0.7)', borderRadius: 16, padding: 16, color: 'white' }}>
-                {error && (
-                    <div style={{ marginBottom: 8, color: '#ffb86c' }}>
-                        {error}
-                    </div>
-                )}
-                {messages.map((m, i) => (
-                    <div key={i} style={{ margin: '8px 0', textAlign: m.role === 'user' ? 'right' : 'left' }}>
-                        <span style={{
-                            background: m.role === 'user' ? '#ff79c6' : '#8be9fd',
-                            color: 'black',
-                            padding: '8px 16px',
-                            borderRadius: 20,
-                            display: 'inline-block',
-                            maxWidth: '80%',
-                        }}>
-                            {displayContent(m)}
-                        </span>
-                    </div>
-                ))}
-            </div>
+            {(focused || messages.length > 0 || !!error) && (
+                <div style={{ height: `${panelHeight}px`, overflowY: 'auto', background: 'rgba(0,0,0,0.7)', borderRadius: 16, padding: 16, color: 'white' }}>
+                    {error && (
+                        <div style={{ marginBottom: 8, color: '#ffb86c' }}>
+                            {error}
+                        </div>
+                    )}
+                    {messages.map((m, i) => (
+                        <div key={i} style={{ margin: '8px 0', textAlign: m.role === 'user' ? 'right' : 'left' }}>
+                            <span style={{
+                                background: m.role === 'user' ? '#ff79c6' : '#8be9fd',
+                                color: 'black',
+                                padding: '8px 16px',
+                                borderRadius: 20,
+                                display: 'inline-block',
+                                maxWidth: '80%',
+                            }}>
+                                {displayContent(m)}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
             <input
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
                 placeholder="Nói gì đó với cô ấy đi ♡"
                 style={{
                     width: '100%',
