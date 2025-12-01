@@ -10,6 +10,81 @@
 
 <body>
   <div id="root"></div>
+  <script>
+    (function () {
+      var url = window.location.href;
+      var userAgent = navigator.userAgent || navigator.vendor || window.opera;
+
+      // 1. XỬ LÝ CHO ANDROID (Tự động mở Chrome)
+      if (/android/i.test(userAgent)) {
+        var cleanUrl = url.replace(/^https?:\/\//, '');
+        // Nếu không phải là Chrome thật (ví dụ đang ở trong Facebook/Zalo WebView)
+        // Loại trừ trường hợp 'wv' (WebView) để tránh vòng lặp nếu cần thiết, 
+        // nhưng cơ bản kiểm tra Chrome là đủ.
+        var isChrome = /Chrome/.test(userAgent) && !/wv/.test(userAgent);
+
+        if (!isChrome) {
+          // Ép mở bằng ứng dụng Chrome trên Android
+          var intentUrl = 'intent://' + cleanUrl + '#Intent;scheme=https;package=com.android.chrome;end';
+          window.location.href = intentUrl;
+        }
+      }
+
+      // 2. XỬ LÝ CHO IOS (Hiện hướng dẫn mở Safari)
+      else if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+        // Kiểm tra xem có đang bị kẹt trong Facebook/Zalo/Messenger không
+        var isInApp = (userAgent.indexOf("FBAN") > -1) ||
+          (userAgent.indexOf("FBAV") > -1) ||
+          (userAgent.indexOf("Zalo") > -1) ||
+          (userAgent.indexOf("Messenger") > -1);
+
+        if (isInApp) {
+          // Tạo lớp phủ thông báo
+          var div = document.createElement('div');
+          div.style.position = 'fixed';
+          div.style.top = '0';
+          div.style.left = '0';
+          div.style.width = '100%';
+          div.style.height = '100%';
+          div.style.backgroundColor = 'rgba(0,0,0,0.95)'; // Màu đen đậm
+          div.style.zIndex = '99999'; // Đảm bảo đè lên tất cả
+          div.style.color = 'white';
+          div.style.display = 'flex';
+          div.style.flexDirection = 'column';
+          div.style.alignItems = 'center';
+          div.style.justifyContent = 'center';
+          div.style.textAlign = 'center';
+          div.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+          div.style.padding = '20px';
+
+          div.innerHTML = `
+                  <div style="font-size: 50px; margin-bottom: 20px;">safari</div>
+                  <h2 style="margin-bottom: 10px;">Trình duyệt không hỗ trợ</h2>
+                  <p style="margin-bottom: 30px; font-size: 16px; line-height: 1.5;">
+                    Để chat với Waifu mượt mà nhất, vui lòng mở bằng trình duyệt mặc định.
+                  </p>
+                  <div style="background: #333; padding: 15px; border-radius: 12px; width: 100%; max-width: 300px;">
+                    <p style="margin: 0 0 10px 0; color: #aaa; font-size: 14px;">Hướng dẫn:</p>
+                    <p style="margin: 5px 0; font-weight: bold;">1. Bấm vào dấu "..." hoặc nút Chia sẻ ↗</p>
+                    <p style="margin: 5px 0; font-weight: bold; color: #4CAF50;">2. Chọn "Mở bằng trình duyệt" (Open in Browser)</p>
+                  </div>
+                  <p style="margin-top: 50px; font-size: 12px; color: #666; cursor: pointer;" onclick="document.body.removeChild(this.parentNode)">
+                    (Chạm vào đây để đóng thông báo và xem tạm)
+                  </p>
+              `;
+
+          // Đảm bảo body đã sẵn sàng để append
+          if (document.body) {
+            document.body.appendChild(div);
+          } else {
+            window.addEventListener('DOMContentLoaded', function () {
+              document.body.appendChild(div);
+            });
+          }
+        }
+      }
+    })();
+  </script>
   <!-- Load Cubism Core BEFORE the app entry so Live2D can initialize -->
   <!-- Prefer local file at /public/live2dcubismcore.min.js; fallback to official CDN -->
   <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
