@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -10,6 +10,13 @@ export default function ChatBox() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [panelHeight, setPanelHeight] = useState<number>(() => (window.innerWidth < 768 ? 150 : 60));
+
+    useEffect(() => {
+        const onResize = () => setPanelHeight(window.innerWidth < 768 ? 150 : 60);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
     const sendMessage = async () => {
         if (!input.trim()) return;
@@ -33,7 +40,7 @@ export default function ChatBox() {
             maxWidth: '600px',
             zIndex: 10,
         }}>
-            <div style={{ height: '60px', overflowY: 'auto', background: 'rgba(0,0,0,0.7)', borderRadius: 16, padding: 16, color: 'white' }}>
+            <div style={{ height: `${panelHeight}px`, overflowY: 'auto', background: 'rgba(0,0,0,0.7)', borderRadius: 16, padding: 16, color: 'white' }}>
                 {error && (
                     <div style={{ marginBottom: 8, color: '#ffb86c' }}>
                         {error}
