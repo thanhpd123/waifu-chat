@@ -26,25 +26,8 @@ function App() {
       >
         made by thanh1934-cr7
       </div>
-      {/* Character name centered */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 10,
-          fontSize: 48,
-          fontWeight: 700,
-          fontFamily: '"Trebuchet MS", system-ui, sans-serif',
-          color: '#ff79c6',
-          textShadow: '0 0 8px rgba(255,121,198,0.6), 0 0 18px rgba(255,121,198,0.4)',
-          pointerEvents: 'none',
-          userSelect: 'none'
-        }}
-      >
-        Kei
-      </div>
+
+
       <Waifu />
       <ChatBox />
     </div>
