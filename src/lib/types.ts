@@ -46,12 +46,26 @@ export interface EngineInfo {
     online: boolean;
 }
 
+export interface TtsStatus {
+    /** Backend có giọng AI dùng được (OpenAI hoặc edge-tts dự phòng). */
+    available: boolean;
+    /** `openai` | `edge-tts` | `browser` */
+    provider: string;
+    model: string;
+    voice: string;
+    /** Có bật provider dự phòng miễn phí (edge-tts) hay không. */
+    fallback?: boolean;
+    /** Lỗi gần nhất khi gọi TTS (key hết hạn, hết quota…) — null nếu đang chạy tốt. */
+    last_error: string | null;
+}
+
 export interface HealthPayload {
     ok: boolean;
     engine: EngineInfo;
     last_error: string | null;
     personas: PersonaInfo[];
     languages: LanguageInfo[];
+    tts?: TtsStatus;
 }
 
 export interface WaifuSettings {
@@ -62,6 +76,14 @@ export interface WaifuSettings {
     voiceEnabled: boolean;
     /** Tốc độ đọc: 0.7 (chậm) → 1.3 (nhanh). */
     ttsRate: number;
+    /** Cao độ giọng trình duyệt: 0.8 (trầm) → 1.5 (cao, kiểu anime). */
+    ttsPitch: number;
+    /** voiceURI giọng trình duyệt người dùng tự chọn ('' = tự chọn giọng nữ). */
+    ttsVoiceURI: string;
+    /** Giọng OpenAI TTS ('' = dùng mặc định của server, ví dụ `coral`). */
+    ttsServerVoice: string;
+    /** Chỉ dùng giọng nữ — thà không đọc còn hơn để giọng nam đọc lời Kei. */
+    voiceFemaleOnly: boolean;
     /** Bật hiệu ứng âm thanh khi chạm vào Kei. */
     sfxEnabled: boolean;
     /** Kei tự chơi motion ngẫu nhiên khi rảnh. */
@@ -76,6 +98,10 @@ export const DEFAULT_SETTINGS: WaifuSettings = {
     userName: 'cậu',
     voiceEnabled: false,
     ttsRate: 1,
+    ttsPitch: 1.15,
+    ttsVoiceURI: '',
+    ttsServerVoice: '',
+    voiceFemaleOnly: true,
     sfxEnabled: true,
     autoMotion: true,
     petals: true,

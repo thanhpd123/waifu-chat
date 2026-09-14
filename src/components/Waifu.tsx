@@ -161,6 +161,7 @@ export default function Waifu({ settings, affection }: WaifuProps) {
     const appRef = useRef<PIXI.Application | null>(null);
     const modelRef = useRef<Live2DModel | null>(null);
     const sfxRef = useRef<HTMLAudioElement | null>(null);
+    const sampleVoiceTokenRef = useRef(0);
     const emoteTimeoutRef = useRef<number | null>(null);
     const headPointRef = useRef({ x: 0, y: 0 });
 
@@ -246,9 +247,18 @@ export default function Waifu({ settings, affection }: WaifuProps) {
     const playSampleVoice = useCallback((index: number = SAMPLE_VOICE_MOTION) => {
         const model = modelRef.current;
         if (!model) return;
+        // Đang chạy đúng motion này thì thư viện sẽ BỎ QUA lệnh mới → phải dừng trước,
+        // nếu không bấm "Đọc lại" lần thứ hai Kei sẽ im lặng.
+        const manager = (
+            model.internalModel as unknown as { motionManager?: { stopAllMotions?: () => void } }
+        ).motionManager;
+        manager?.stopAllMotions?.();
+
+        const token = (sampleVoiceTokenRef.current += 1);
         live2dConfig.sound = true;
         void model.motion(MOTION_GROUP, index).finally(() => {
-            live2dConfig.sound = false;
+            // Chỉ tắt âm thanh nếu không có lần phát mới nào chen vào giữa.
+            if (sampleVoiceTokenRef.current === token) live2dConfig.sound = false;
         });
     }, []);
 

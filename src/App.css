@@ -829,6 +829,23 @@ textarea {
     border-color: rgba(255, 121, 198, 0.6);
 }
 
+/* Dropdown chọn giọng đọc: mũi tên vẽ bằng gradient cho hợp tông kính mờ. */
+select.text-input {
+    appearance: none;
+    padding-right: 34px;
+    cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%),
+        linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+    background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+}
+
+select.text-input option {
+    color: #1b1026;
+    background: #ffffff;
+}
+
 .toggle {
     display: flex;
     align-items: center;

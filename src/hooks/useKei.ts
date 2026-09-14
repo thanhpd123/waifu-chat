@@ -14,7 +14,7 @@ import {
 import { DEFAULT_SETTINGS } from '../lib/types';
 import type { ChatMessage, EngineInfo, HealthPayload, PersonaInfo, WaifuSettings } from '../lib/types';
 import { clamp, timeOfDay, uid } from '../lib/utils';
-import { speakAsKei, stopKeiVoice } from '../lib/voice';
+import { speakAsKei, stopKeiVoice, configureVoice } from '../lib/voice';
 import { waifuBus } from '../lib/waifuBus';
 
 /** Điểm thân thiết cộng thêm mỗi lần trò chuyện. */
@@ -139,8 +139,14 @@ export function useKei() {
             waifuBus.emit('emote', { emotion: payload.emotion ?? 'neutral', durationMs: 7000 });
 
             // Kei "nói": giọng nữ anime từ server (đúng nội dung), có fallback.
+            // Truyền kèm cảm xúc để server đổi sắc thái giọng theo thẻ <emo>.
             if (payload.text && settingsRef.current.voiceEnabled) {
-                void speakAsKei(payload.text, settingsRef.current.language, settingsRef.current.ttsRate);
+                void speakAsKei(
+                    payload.text,
+                    settingsRef.current.language,
+                    settingsRef.current.ttsRate,
+                    payload.emotion ?? undefined,
+                );
             }
         },
         [],
@@ -281,6 +287,25 @@ export function useKei() {
         setSettings(current => ({ ...current, ...patch }));
     }, []);
 
+    /** Đẩy cấu hình giọng xuống module voice (dùng chung cho mọi lần đọc). */
+    useEffect(() => {
+        configureVoice({
+            rate: settings.ttsRate,
+            pitch: settings.ttsPitch,
+            voiceURI: settings.ttsVoiceURI,
+            femaleOnly: settings.voiceFemaleOnly,
+            serverVoice: settings.ttsServerVoice,
+            language: settings.language,
+        });
+    }, [
+        settings.ttsRate,
+        settings.ttsPitch,
+        settings.ttsVoiceURI,
+        settings.voiceFemaleOnly,
+        settings.ttsServerVoice,
+        settings.language,
+    ]);
+
     const resetAffection = useCallback(() => setAffection(0), []);
 
     const personas = useMemo<PersonaInfo[]>(
@@ -301,6 +326,7 @@ export function useKei() {
         settings,
         affection,
         engine,
+        tts: health?.tts ?? null,
         busy,
         notice,
         personas,

@@ -70,4 +70,10 @@ export default defineConfig([
     },
   },
 ])
+
+.venv\Scripts\python.exe server\app.py
+npm run dev
+-----
+python server/app.py
+npm run dev
 ```

@@ -25,8 +25,62 @@ export const LANG_TAGS: Record<string, string> = {
     en: 'en-US',
 };
 
+/**
+ * Tên giọng NỮ đã biết (Windows / macOS / Chrome / Edge — kể cả giọng online
+ * của Edge như "Microsoft HoaiMy Online (Natural) - Vietnamese").
+ */
 const FEMALE_HINTS =
-    /(hoai\s*my|hoaimy|linh|mai|yui|kyoko|nanami|aoi|sakura|google|zira|aria|jenny|samantha|female|nữ)/i;
+    /(hoai\s*my|hoaimy|linh|mai|thu|yui|kyoko|nanami|aoi|sakura|mayu|shiori|ayumi|haruka|sayaka|misaki|kaori|google|zira|aria|jenny|samantha|michelle|ava|emma|clara|female|nữ)/i;
+
+/**
+ * Tên giọng NAM — KHÔNG bao giờ dùng cho Kei.
+ * (Trước đây máy chỉ có "Microsoft An" cho tiếng Việt nên Kei bị đọc bằng
+ * giọng nam, nghe rất phá hình tượng nhân vật.)
+ */
+const MALE_HINTS =
+    /(\bmicrosoft an\b|\ban\b|nam\s*minh|namminh|mark|david|ichiro|keita|daichi|naoki|masaru|guy|ryan|brandon|christopher|eric|fred|daniel|diego|jorge|male|\bnam\b)/i;
+
+export type VoiceGender = 'female' | 'male' | 'unknown';
+
+export interface VoiceOption {
+    voiceURI: string;
+    name: string;
+    lang: string;
+    gender: VoiceGender;
+    local: boolean;
+}
+
+/** Đoán giới tính từ tên giọng (Web Speech API không cung cấp thông tin này). */
+export function guessGender(name: string): VoiceGender {
+    if (FEMALE_HINTS.test(name)) return 'female';
+    if (MALE_HINTS.test(name)) return 'male';
+    return 'unknown';
+}
+
+interface VoiceConfig {
+    rate: number;
+    pitch: number;
+    voiceURI: string;
+    femaleOnly: boolean;
+    /** Giọng OpenAI TTS người dùng chọn ('' = mặc định của server, vd. `coral`). */
+    serverVoice: string;
+    /** Ngôn ngữ đang trả lời — server dùng để chọn giọng nữ dự phòng đúng tiếng. */
+    language: string;
+}
+
+/** Cấu hình giọng đọc, đồng bộ từ bảng Cài đặt. */
+const voiceConfig: VoiceConfig = {
+    rate: 1,
+    pitch: 1.15,
+    voiceURI: '',
+    femaleOnly: true,
+    serverVoice: '',
+    language: 'vi',
+};
+
+export function configureVoice(next: Partial<VoiceConfig>): void {
+    Object.assign(voiceConfig, next);
+}
 
 let voices: SpeechSynthesisVoice[] = [];
 let voicesBound = false;
@@ -58,16 +112,58 @@ export function onVoicesReady(callback: () => void): () => void {
     return () => window.speechSynthesis.removeEventListener('voiceschanged', handler);
 }
 
-export function pickVoice(lang: string): SpeechSynthesisVoice | null {
+export interface PickVoiceOptions {
+    /** voiceURI người dùng chọn trong Cài đặt (bỏ qua nếu máy không còn giọng đó). */
+    voiceURI?: string;
+    /** Chỉ nhận giọng nữ; nếu máy không có giọng nữ đúng ngôn ngữ → trả về null. */
+    femaleOnly?: boolean;
+}
+
+/**
+ * Chọn giọng đọc theo thứ tự ưu tiên:
+ *   1. Giọng người dùng đã chọn (nếu còn khả dụng).
+ *   2. Giọng nữ đúng ngôn ngữ (HoaiMy/Linh cho tiếng Việt, Nanami/Ayumi cho tiếng Nhật…).
+ *   3. Không có giọng nữ + `femaleOnly` → trả về null (thà không đọc còn hơn giọng nam).
+ *
+ * Không bao giờ fallback sang ngôn ngữ khác: Kei đọc tiếng Việt bằng giọng Anh
+ * hoặc tiếng Nhật nghe rất "lạ".
+ */
+export function pickVoice(lang: string, options: PickVoiceOptions = {}): SpeechSynthesisVoice | null {
     const list = getVoices();
     if (!list.length) return null;
+
+    const wantedURI = options.voiceURI ?? voiceConfig.voiceURI;
+    if (wantedURI) {
+        const chosen = list.find(v => v.voiceURI === wantedURI);
+        if (chosen) return chosen;
+    }
+
     const prefix = lang.split('-')[0].toLowerCase();
     const sameLang = list.filter(v => v.lang.toLowerCase().replace('_', '-').startsWith(prefix));
-    // Không có giọng đúng ngôn ngữ → trả về null để trình duyệt tự quyết định.
-    // (Trước đây fallback sang giọng của ngôn ngữ khác, khiến Kei đọc tiếng Việt/
-    // tiếng Nhật bằng giọng Anh — nghe rất "lạ".)
     if (!sameLang.length) return null;
-    return sameLang.find(v => FEMALE_HINTS.test(v.name)) ?? sameLang[0] ?? null;
+
+    const female = sameLang.filter(v => guessGender(v.name) === 'female');
+    if (female.length) return female[0] ?? null;
+
+    const femaleOnly = options.femaleOnly ?? voiceConfig.femaleOnly;
+    if (femaleOnly) return null; // máy chỉ có giọng nam → không dùng
+    return sameLang.find(v => guessGender(v.name) !== 'male') ?? sameLang[0] ?? null;
+}
+
+/** Danh sách giọng đọc kèm giới tính đoán được — dùng cho dropdown trong Cài đặt. */
+export function listVoices(lang?: string): VoiceOption[] {
+    const prefix = lang ? (LANG_TAGS[lang] ?? LANG_TAGS.vi).split('-')[0].toLowerCase() : undefined;
+    const rank = (option: VoiceOption) => (option.gender === 'female' ? 0 : option.gender === 'male' ? 2 : 1);
+    return getVoices()
+        .map(voice => ({
+            voiceURI: voice.voiceURI,
+            name: voice.name,
+            lang: voice.lang,
+            gender: guessGender(voice.name),
+            local: voice.localService,
+        }))
+        .filter(option => !prefix || option.lang.toLowerCase().replace('_', '-').startsWith(prefix))
+        .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
 /** Bỏ markdown/hành động/kaomoji để giọng đọc nghe tự nhiên. */
@@ -124,7 +220,7 @@ export function speak(text: string, options: SpeakOptions): Promise<void> {
         const utterance = new SpeechSynthesisUtterance(clean);
         utterance.lang = LANG_TAGS[options.lang] ?? LANG_TAGS.vi;
         utterance.rate = clamp(options.rate, 0.6, 1.4);
-        utterance.pitch = 1.15; // cao hơn một chút cho giọng anime
+        utterance.pitch = clamp(voiceConfig.pitch, 0.5, 2); // cao hơn chút → giọng anime
         utterance.volume = 1;
 
         const voice = pickVoice(utterance.lang);
@@ -259,13 +355,18 @@ function driveMouthByText(text: string): void {
 }
 
 /** Lấy mp3 từ server rồi phát + nhép miệng. Trả về true nếu phát được. */
-async function playServerVoice(text: string): Promise<boolean> {
+async function playServerVoice(text: string, emotion?: string): Promise<boolean> {
     let blob: Blob;
     try {
         const response = await fetch(TTS_ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text }),
+            body: JSON.stringify({
+                text,
+                emotion,
+                voice: voiceConfig.serverVoice || undefined,
+                language: voiceConfig.language,
+            }),
         });
         if (!response.ok) return false;
         blob = await response.blob();
@@ -298,15 +399,18 @@ async function playServerVoice(text: string): Promise<boolean> {
  *   2. TTS của trình duyệt nếu máy có giọng đúng ngôn ngữ.
  *   3. Clip thoại (.wav) có sẵn của model — đúng giọng gốc Kei, nhưng là câu thu sẵn.
  */
-export async function speakAsKei(text: string, lang: string, rate: number): Promise<void> {
+export async function speakAsKei(text: string, lang: string, rate: number, emotion?: string): Promise<void> {
+    configureVoice({ rate, language: lang });
     const clean = prepareForSpeech(text);
-    if (clean && (await playServerVoice(clean))) return;
+    if (clean && (await playServerVoice(clean, emotion))) return;
 
     const tag = LANG_TAGS[lang] ?? LANG_TAGS.vi;
     if (clean && pickVoice(tag)) {
         await speak(text, { lang, rate });
         return;
     }
+    // Máy không có giọng nữ đúng ngôn ngữ (hoặc backend TTS đang tắt) → phát clip
+    // thoại gốc của Kei: thà "nói" bằng giọng Kei còn hơn đọc lời cô ấy bằng giọng nam.
     waifuBus.emit('sampleVoice', {});
 }
 

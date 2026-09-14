@@ -33,6 +33,7 @@ export default function ChatPanel({ kei, firstSeenAt }: ChatPanelProps) {
         settings,
         affection,
         engine,
+        tts,
         busy,
         notice,
         personas,
@@ -88,7 +89,7 @@ export default function ChatPanel({ kei, firstSeenAt }: ChatPanelProps) {
     };
 
     const repeat = (message: ChatMessage) => {
-        void speakAsKei(message.content, settings.language, settings.ttsRate);
+        void speakAsKei(message.content, settings.language, settings.ttsRate, message.emotion);
     };
 
     const meta = EMOTION_META[lastEmotion];
@@ -237,6 +238,7 @@ export default function ChatPanel({ kei, firstSeenAt }: ChatPanelProps) {
                     personas={personas}
                     languages={languages}
                     engine={engine}
+                    tts={tts}
                     affection={affection}
                     firstSeenAt={firstSeenAt}
                     onChange={changeSettings}

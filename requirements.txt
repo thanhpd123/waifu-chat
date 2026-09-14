@@ -15,3 +15,8 @@ python-dotenv>=1.0
 # ---- Chọn 1 trong 2 (hoặc cả hai) tuỳ provider bạn dùng trong .env ----
 openai>=1.40
 google-genai>=1.0
+
+# ---- TTS dự phòng MIỄN PHÍ (không cần API key) ----
+# Khi key OpenAI lỗi, backend vẫn đọc được bằng giọng nữ: vi-VN-HoaiMyNeural
+# (tiếng Việt), ja-JP-NanamiNeural, en-US-AvaNeural. Tắt bằng EDGE_TTS_FALLBACK=0.
+edge-tts>=7.0
