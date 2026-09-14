@@ -1,0 +1,17 @@
+# ==========================================================
+# 🌸 Kei Waifu Chat — Python dependencies for `server/app.py`
+# ==========================================================
+# Cài đặt:
+#     python -m venv .venv
+#     .venv\Scripts\Activate.ps1      # Windows PowerShell
+#     pip install -r requirements.txt
+#
+# Chạy backend:
+#     python server/app.py            # http://127.0.0.1:8000
+
+flask>=3.0
+python-dotenv>=1.0
+
+# ---- Chọn 1 trong 2 (hoặc cả hai) tuỳ provider bạn dùng trong .env ----
+openai>=1.40
+google-genai>=1.0

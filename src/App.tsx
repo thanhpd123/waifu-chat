@@ -1,37 +1,57 @@
-import './App.css'
-
+import { useEffect, useState } from 'react';
+import './App.css';
+import ChatPanel from './components/ChatPanel';
 import Waifu from './components/Waifu';
-import ChatBox from './components/ChatBox';
-// import TawkMessengerReact from '@tawk.to/tawk-messenger-react';
+import { useKei } from './hooks/useKei';
+import { firstSeen, hasSeenHint, markHintSeen } from './lib/storage';
+import { timeOfDay } from './lib/utils';
 
+/**
+ * 🌸 Kei — chatbox anime với nhân vật Live2D.
+ *
+ * Bố cục: nhân vật ở bên phải (nền Live2D trong suốt), khung chat dạng kính ở bên trái.
+ * Trên mobile, khung chat trượt xuống dưới và Kei thu nhỏ ở phía trên.
+ */
 function App() {
-  // const propertyId = import.meta.env.VITE_TAWK_PROPERTY_ID as string | undefined;
-  // const widgetId = import.meta.env.VITE_TAWK_WIDGET_ID as string | undefined;
-  return (
-    <div style={{ background: '#000', height: '100vh', overflow: 'hidden' }}>
-      {/* Credit top-left */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 8,
-          left: 12,
-          zIndex: 10,
-          fontSize: 12,
-          fontFamily: 'sans-serif',
-          letterSpacing: '0.5px',
-          color: '#8be9fd',
-          opacity: 0.75,
-          userSelect: 'none'
-        }}
-      >
-        made by thanh1934-cr7
-      </div>
+    const kei = useKei();
+    const [firstSeenAt] = useState(() => firstSeen());
+    const [hint, setHint] = useState(() => !hasSeenHint());
 
+    useEffect(() => {
+        if (!hint) return;
+        markHintSeen();
+        const timer = window.setTimeout(() => setHint(false), 10_000);
+        return () => window.clearTimeout(timer);
+    }, [hint]);
 
-      <Waifu />
-      <ChatBox />
-    </div>
-  );
+    const dayPart = timeOfDay();
+
+    return (
+        <div className="app">
+            <div className="app__aurora" aria-hidden="true" />
+
+            <header className="topbar">
+                <div className="topbar__brand">
+                    <span className="topbar__logo">🌸</span>
+                    <div>
+                        <strong>Kei · Live2D Chat</strong>
+                        <small>{dayPart.text}</small>
+                    </div>
+                </div>
+                <span className="topbar__credit">made by thanh1934-cr7</span>
+            </header>
+
+            <Waifu settings={kei.settings} affection={kei.affection} />
+
+            <ChatPanel kei={kei} firstSeenAt={firstSeenAt} />
+
+            {hint && (
+                <div className="hint-toast" role="status">
+                    💡 Di chuyển chuột để Kei nhìn theo · Chạm vào Kei để xoa đầu · Bật 🔊 để nghe cô ấy nói
+                </div>
+            )}
+        </div>
+    );
 }
 
 export default App;

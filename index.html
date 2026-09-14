@@ -1,11 +1,21 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
 
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>waifu-chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0512" />
+  <meta name="description"
+    content="Kei — chatbox anime với nhân vật Live2D: trò chuyện, đổi biểu cảm theo cảm xúc và nhép miệng theo giọng nói." />
+  <title>🌸 Kei · Live2D Chat</title>
+
+  <!-- Font giao diện (có fallback hệ thống nếu offline) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap"
+    rel="stylesheet" />
 </head>
 
 <body>
@@ -85,10 +95,11 @@
       }
     })();
   </script>
-  <!-- Load Cubism Core BEFORE the app entry so Live2D can initialize -->
-  <!-- Prefer local file at /public/live2dcubismcore.min.js; fallback to official CDN -->
-  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
-
+  <!--
+    Live2D Cubism Core được nạp động trong app (src/lib/live2dCore.ts):
+    ưu tiên bản local `/live2dcubismcore.min.js`, tự fallback sang CDN khi thiếu file.
+    Nhờ vậy Kei vẫn hiện ra khi offline hoặc khi mạng chặn domain live2d.com.
+  -->
   <script type="module" src="/src/main.tsx"></script>
 </body>
 
