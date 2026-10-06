@@ -1,55 +1,78 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import type { Session, SupabaseClient, User } from '@supabase/supabase-js';
+import { loadAuthConfig } from './supabase';
 
 interface AuthState {
-    /** Đang đọc phiên đăng nhập đã lưu (chưa biết đăng nhập hay chưa). */
+    /** Đang tải cấu hình / đọc phiên đăng nhập đã lưu (chưa biết đăng nhập hay chưa). */
     loading: boolean;
+    /** null = chưa cấu hình Supabase → chế độ lưu trong trình duyệt. */
+    client: SupabaseClient | null;
+    authEnabled: boolean;
+    googleLogin: boolean;
     session: Session | null;
     user: User | null;
     signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
-    loading: false,
+    loading: true,
+    client: null,
+    authEnabled: false,
+    googleLogin: false,
     session: null,
     user: null,
     signOut: async () => undefined,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    const [client, setClient] = useState<SupabaseClient | null>(null);
+    const [googleLogin, setGoogleLogin] = useState(false);
     const [session, setSession] = useState<Session | null>(null);
-    const [loading, setLoading] = useState(supabase !== null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!supabase) return;
         let alive = true;
-        void supabase.auth.getSession().then(({ data }) => {
+        let unsubscribe: (() => void) | undefined;
+
+        void loadAuthConfig().then(async config => {
             if (!alive) return;
-            setSession(data.session);
+            setClient(config.client);
+            setGoogleLogin(config.googleLogin);
+            if (!config.client) {
+                setLoading(false);
+                return;
+            }
+            const { data } = config.client.auth.onAuthStateChange((_event, next) => {
+                setSession(next);
+                setLoading(false);
+            });
+            unsubscribe = () => data.subscription.unsubscribe();
+            const current = await config.client.auth.getSession();
+            if (!alive) return;
+            setSession(current.data.session);
             setLoading(false);
         });
-        const { data } = supabase.auth.onAuthStateChange((_event, next) => {
-            setSession(next);
-            setLoading(false);
-        });
+
         return () => {
             alive = false;
-            data.subscription.unsubscribe();
+            unsubscribe?.();
         };
     }, []);
 
     const value = useMemo<AuthState>(
         () => ({
             loading,
+            client,
+            authEnabled: client !== null,
+            googleLogin,
             session,
             user: session?.user ?? null,
             signOut: async () => {
-                await supabase?.auth.signOut();
+                await client?.auth.signOut();
             },
         }),
-        [loading, session],
+        [loading, client, googleLogin, session],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
