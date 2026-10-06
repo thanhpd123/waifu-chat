@@ -1671,6 +1671,9 @@ def api_health() -> Response:
     """
     engine_info = ENGINE.describe()
     configured = dict(engine_info)
+    tts_provider = LAST_TTS_PROVIDER or (
+        "openai" if isinstance(ENGINE, OpenAIEngine) else ("edge-tts" if EDGE_TTS_FALLBACK else "browser")
+    )
     if LAST_ERROR:
         engine_info = MockEngine().describe()
 
@@ -1688,10 +1691,10 @@ def api_health() -> Response:
             "emotions": list(EMOTIONS),
             "tts": {
                 "available": LAST_TTS_PROVIDER is not None or EDGE_TTS_FALLBACK or isinstance(ENGINE, OpenAIEngine),
-                "provider": LAST_TTS_PROVIDER
-                or ("openai" if isinstance(ENGINE, OpenAIEngine) else ("edge-tts" if EDGE_TTS_FALLBACK else "browser")),
-                "model": TTS_MODEL,
-                "voice": EDGE_TTS_VOICES.get("vi", "") if LAST_TTS_PROVIDER == "edge-tts" else TTS_VOICE,
+                "provider": tts_provider,
+                # Model/giọng phải khớp provider thật (trước đây edge-tts vẫn báo "coral").
+                "model": TTS_MODEL if tts_provider == "openai" else ("edge-tts" if tts_provider == "edge-tts" else ""),
+                "voice": TTS_VOICE if tts_provider == "openai" else EDGE_TTS_VOICES.get("vi", "") if tts_provider == "edge-tts" else "",
                 "fallback": EDGE_TTS_FALLBACK,
                 "last_error": LAST_TTS_ERROR,
             },
