@@ -15,6 +15,10 @@
     {
       "source": "/api/:path*",
       "destination": "/api/index?__kei_path=:path*"
+    },
+    {
+      "source": "/((?!api/|assets/|models/|landing/).*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
@@ -38,6 +42,15 @@
     },
     {
       "source": "/live2dcubismcore.min.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
+    },
+    {
+      "source": "/landing/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

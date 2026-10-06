@@ -3,8 +3,22 @@ import './App.css';
 import ChatPanel from './components/ChatPanel';
 import Waifu from './components/Waifu';
 import { useKei } from './hooks/useKei';
+import type { ChatStore } from './lib/chatStore';
+import { linkHandler } from './lib/router';
 import { firstSeen, hasSeenHint, markHintSeen } from './lib/storage';
 import { timeOfDay } from './lib/utils';
+
+/** Tài khoản đang đăng nhập (null = chế độ lưu trong trình duyệt). */
+export interface Account {
+    name: string;
+    email: string;
+    onSignOut: () => Promise<void>;
+}
+
+interface AppProps {
+    store: ChatStore;
+    account: Account | null;
+}
 
 /**
  * 🌸 Kei — chatbox anime với nhân vật Live2D.
@@ -12,8 +26,8 @@ import { timeOfDay } from './lib/utils';
  * Bố cục: nhân vật ở bên phải (nền Live2D trong suốt), khung chat dạng kính ở bên trái.
  * Trên mobile, khung chat trượt xuống dưới và Kei thu nhỏ ở phía trên.
  */
-function App() {
-    const kei = useKei();
+function App({ store, account }: AppProps) {
+    const kei = useKei({ store, defaultUserName: account?.name });
     const [firstSeenAt] = useState(() => firstSeen());
     const [hint, setHint] = useState(() => !hasSeenHint());
 
@@ -31,19 +45,19 @@ function App() {
             <div className="app__aurora" aria-hidden="true" />
 
             <header className="topbar">
-                <div className="topbar__brand">
+                <a className="topbar__brand" href="/" onClick={linkHandler('/')} title="Về trang chủ">
                     <span className="topbar__logo">🌸</span>
                     <div>
                         <strong>Kei · Live2D Chat</strong>
                         <small>{dayPart.text}</small>
                     </div>
-                </div>
+                </a>
                 <span className="topbar__credit">made by thanh1934-cr7</span>
             </header>
 
             <Waifu settings={kei.settings} affection={kei.affection} />
 
-            <ChatPanel kei={kei} firstSeenAt={firstSeenAt} />
+            <ChatPanel kei={kei} firstSeenAt={firstSeenAt} account={account} />
 
             {hint && (
                 <div className="hint-toast" role="status">

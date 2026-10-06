@@ -25,3 +25,32 @@ body {
 #root {
     isolation: isolate;
 }
+/* Màn hình chờ khi đang đọc phiên đăng nhập / nạp Live2D */
+.splash {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 14px;
+    color: #b9a4d8;
+    font-family: 'Quicksand', system-ui, sans-serif;
+    background: radial-gradient(700px 500px at 50% 40%, rgba(196, 108, 255, 0.18), transparent 70%), #0a0512;
+}
+
+.splash__logo {
+    font-size: 44px;
+    filter: drop-shadow(0 0 14px rgba(255, 121, 198, 0.7));
+    animation: splash-pulse 1.4s ease-in-out infinite;
+}
+
+.splash p {
+    margin: 0;
+}
+
+@keyframes splash-pulse {
+    50% {
+        transform: scale(1.12);
+        opacity: 0.7;
+    }
+}

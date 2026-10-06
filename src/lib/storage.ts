@@ -1,14 +1,11 @@
 import { clamp } from './utils';
 import { DEFAULT_SETTINGS } from './types';
-import type { ChatMessage, WaifuSettings } from './types';
+import type { WaifuSettings } from './types';
 
 const PREFIX = 'kei.v1.';
-const KEY_MESSAGES = `${PREFIX}messages`;
 const KEY_SETTINGS = `${PREFIX}settings`;
 const KEY_AFFECTION = `${PREFIX}affection`;
 const KEY_FIRST_SEEN = `${PREFIX}firstSeen`;
-
-const MAX_STORED_MESSAGES = 80;
 
 function read<T>(key: string, fallback: T): T {
     try {
@@ -25,27 +22,6 @@ function write(key: string, value: unknown): void {
         window.localStorage.setItem(key, JSON.stringify(value));
     } catch {
         /* localStorage đầy hoặc bị chặn → bỏ qua, không làm chết app */
-    }
-}
-
-export function loadMessages(): ChatMessage[] {
-    const messages = read<ChatMessage[]>(KEY_MESSAGES, []);
-    if (!Array.isArray(messages)) return [];
-    return messages
-        .filter(m => m && typeof m.content === 'string' && (m.role === 'user' || m.role === 'assistant'))
-        .map(m => ({ ...m, streaming: false }))
-        .slice(-MAX_STORED_MESSAGES);
-}
-
-export function saveMessages(messages: ChatMessage[]): void {
-    write(KEY_MESSAGES, messages.filter(m => !m.system && m.content.trim()).slice(-MAX_STORED_MESSAGES));
-}
-
-export function clearMessages(): void {
-    try {
-        window.localStorage.removeItem(KEY_MESSAGES);
-    } catch {
-        /* ignore */
     }
 }
 
@@ -75,13 +51,6 @@ export function firstSeen(): number {
     return now;
 }
 
-export function resetAll(): void {
-    try {
-        [KEY_MESSAGES, KEY_SETTINGS, KEY_AFFECTION].forEach(key => window.localStorage.removeItem(key));
-    } catch {
-        /* ignore */
-    }
-}
 /* --------------------------- Gợi ý cho người mới --------------------------- */
 
 const KEY_HINT_SEEN = `${PREFIX}hintSeen`;

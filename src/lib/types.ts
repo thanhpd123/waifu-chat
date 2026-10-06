@@ -26,6 +26,8 @@ export interface ChatMessage {
     streaming?: boolean;
     /** Tin nhắn hệ thống (mất kết nối, thông báo...). */
     system?: boolean;
+    /** Chỉ hiển thị, không lưu (vd. lời chào tự sinh khi mở cuộc trò chuyện mới). */
+    local?: boolean;
 }
 
 export interface PersonaInfo {

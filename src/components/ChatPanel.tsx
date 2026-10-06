@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Account } from '../App';
 import type { KeiStore } from '../hooks/useKei';
 import { EMOTION_META } from '../lib/emotion';
 import type { ChatMessage } from '../lib/types';
 import { speakAsKei, stopKeiVoice } from '../lib/voice';
+import ConversationsPanel from './ConversationsPanel';
 import MessageBubble from './MessageBubble';
 import SettingsPanel from './SettingsPanel';
 
 interface ChatPanelProps {
     kei: KeiStore;
     firstSeenAt: number;
+    account: Account | null;
 }
 
 const SUGGESTIONS = [
@@ -27,7 +30,7 @@ function affectionTier(value: number): { label: string; emoji: string } {
 }
 
 /** Khung chat chính: trạng thái, thanh thân thiết, danh sách tin nhắn và ô soạn thảo. */
-export default function ChatPanel({ kei, firstSeenAt }: ChatPanelProps) {
+export default function ChatPanel({ kei, firstSeenAt, account }: ChatPanelProps) {
     const {
         messages,
         settings,
@@ -45,10 +48,20 @@ export default function ChatPanel({ kei, firstSeenAt }: ChatPanelProps) {
         changeSettings,
         resetAffection,
         dismissNotice,
+        conversations,
+        activeId,
+        loadingHistory,
+        storeKind,
+        newConversation,
+        selectConversation,
+        renameConversation,
+        deleteConversation,
     } = kei;
 
     const [input, setInput] = useState('');
     const [showSettings, setShowSettings] = useState(false);
+    const [showSessions, setShowSessions] = useState(false);
+    const activeTitle = conversations.find(c => c.id === activeId)?.title ?? 'Cuộc trò chuyện mới';
     const [collapsed, setCollapsed] = useState(false);
 
     const listRef = useRef<HTMLDivElement>(null);
@@ -123,6 +136,14 @@ export default function ChatPanel({ kei, firstSeenAt }: ChatPanelProps) {
                 <div className="chat__head-actions">
                     <button
                         type="button"
+                        className="icon-button"
+                        title="Các cuộc trò chuyện"
+                        onClick={() => setShowSessions(true)}
+                    >
+                        ☰
+                    </button>
+                    <button
+                        type="button"
                         className={`icon-button${settings.voiceEnabled ? ' icon-button--active' : ''}`}
                         title={settings.voiceEnabled ? 'Tắt giọng nói' : 'Bật giọng nói'}
                         onClick={() => {
@@ -151,6 +172,21 @@ export default function ChatPanel({ kei, firstSeenAt }: ChatPanelProps) {
                 </div>
             </header>
 
+            <div className="chat__session">
+                <span className="chat__session-title" title={activeTitle}>
+                    💬 {activeTitle}
+                </span>
+                <button
+                    type="button"
+                    className="link-button"
+                    onClick={newConversation}
+                    disabled={busy || (!activeId && userMessageCount === 0)}
+                    title="Bắt đầu cuộc trò chuyện mới"
+                >
+                    ＋ Mới
+                </button>
+            </div>
+
             <div className="chat__affection" title={`Độ thân thiết: ${affection}/100`}>
                 <div className="chat__affection-bar">
                     <span style={{ width: `${affection}%` }} />
@@ -170,11 +206,12 @@ export default function ChatPanel({ kei, firstSeenAt }: ChatPanelProps) {
             )}
 
             <div className="chat__list" ref={listRef} onScroll={handleScroll}>
+                {loadingHistory && <p className="chat__loading">Kei đang lật lại cuốn sổ trò chuyện…</p>}
                 {messages.map(message => (
                     <MessageBubble key={message.id} message={message} onRepeat={repeat} />
                 ))}
 
-                {userMessageCount === 0 && (
+                {userMessageCount === 0 && !loadingHistory && (
                     <div className="chat__suggestions">
                         <p>Gợi ý để bắt chuyện với Kei:</p>
                         <div className="chip-row">
@@ -231,6 +268,20 @@ export default function ChatPanel({ kei, firstSeenAt }: ChatPanelProps) {
                 </button>
                 <span className="chat__hint">Enter để gửi · Shift + Enter để xuống dòng</span>
             </div>
+
+            {showSessions && (
+                <ConversationsPanel
+                    conversations={conversations}
+                    activeId={activeId}
+                    account={account}
+                    storeKind={storeKind}
+                    onNew={newConversation}
+                    onSelect={id => void selectConversation(id)}
+                    onRename={renameConversation}
+                    onDelete={deleteConversation}
+                    onClose={() => setShowSessions(false)}
+                />
+            )}
 
             {showSettings && (
                 <SettingsPanel
