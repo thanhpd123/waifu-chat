@@ -20,6 +20,9 @@ const proxy = {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Nhận cả biến kiểu Next.js (NEXT_PUBLIC_*) do tích hợp Supabase ↔ Vercel tự tạo.
+  // Chỉ biến có tiền tố này mới được đưa vào bundle (đều là giá trị công khai).
+  envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   server: { proxy },
   preview: { proxy },
   build: {

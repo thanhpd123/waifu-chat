@@ -1601,8 +1601,20 @@ OFFLINE_NOTICE_SHOWN = False
 # Khi Vercel có VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (dùng chung với
 # frontend), mọi request chat/TTS phải kèm `Authorization: Bearer <token>`.
 # Nhờ vậy người ngoài không thể gọi thẳng /api để "đốt" quota Gemini miễn phí.
-SUPABASE_URL = (os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL") or "").strip().rstrip("/")
-SUPABASE_ANON_KEY = (os.getenv("SUPABASE_ANON_KEY") or os.getenv("VITE_SUPABASE_ANON_KEY") or "").strip()
+def _first_env(*names: str) -> str:
+    for name in names:
+        value = (os.getenv(name) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+# Chấp nhận cả tên VITE_* lẫn NEXT_PUBLIC_* (tích hợp Supabase ↔ Vercel tự tạo tên kiểu Next.js).
+SUPABASE_URL = _first_env("SUPABASE_URL", "VITE_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL").rstrip("/")
+SUPABASE_ANON_KEY = _first_env(
+    "SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_ANON_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+)
 AUTH_REQUIRED = bool(SUPABASE_URL and SUPABASE_ANON_KEY) and os.getenv("KEI_REQUIRE_LOGIN", "1") not in (
     "0", "false", "False",
 )
