@@ -307,7 +307,7 @@ export default function SettingsPanel({
                     <h3>Vùng nguy hiểm</h3>
                     <div className="button-row">
                         <button type="button" className="ghost-button" onClick={onClearChat}>
-                            🧹 Xoá lịch sử trò chuyện
+                            🧹 Xoá tin nhắn của cuộc trò chuyện này
                         </button>
                         <button type="button" className="ghost-button ghost-button--danger" onClick={onResetAffection}>
                             💔 Đặt lại độ thân thiết

@@ -31,6 +31,7 @@ Biến môi trường (đọc từ `.env` ở thư mục gốc dự án)
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import random
@@ -38,6 +39,8 @@ import re
 import threading
 import time
 import unicodedata
+import urllib.error
+import urllib.request
 from collections import OrderedDict, deque
 from datetime import datetime
 from typing import Any, Dict, Iterable, Iterator, List, Optional
@@ -1592,11 +1595,69 @@ LAST_ERROR: Optional[str] = None
 OFFLINE_NOTICE_SHOWN = False
 
 
+# ------------------------------------------------------------------------------
+# 4.0 ĐĂNG NHẬP (Supabase) — chỉ người đã đăng nhập mới dùng được Kei
+# ------------------------------------------------------------------------------
+# Khi Vercel có VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (dùng chung với
+# frontend), mọi request chat/TTS phải kèm `Authorization: Bearer <token>`.
+# Nhờ vậy người ngoài không thể gọi thẳng /api để "đốt" quota Gemini miễn phí.
+SUPABASE_URL = (os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL") or "").strip().rstrip("/")
+SUPABASE_ANON_KEY = (os.getenv("SUPABASE_ANON_KEY") or os.getenv("VITE_SUPABASE_ANON_KEY") or "").strip()
+AUTH_REQUIRED = bool(SUPABASE_URL and SUPABASE_ANON_KEY) and os.getenv("KEI_REQUIRE_LOGIN", "1") not in (
+    "0", "false", "False",
+)
+PROTECTED_PATHS = {"/api/chat", "/api/chat/stream", "/api/tts"}
+_AUTH_TTL = 300.0
+_AUTH_CACHE: Dict[str, float] = {}  # sha256(token) -> hết hạn lúc nào (đã xác thực OK)
+
+
+def _verify_supabase_token(token: str) -> Optional[bool]:
+    """True: token hợp lệ · False: token sai/hết hạn · None: không hỏi được Supabase."""
+    req = urllib.request.Request(
+        f"{SUPABASE_URL}/auth/v1/user",
+        headers={"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=6) as response:
+            return 200 <= response.status < 300
+    except urllib.error.HTTPError as exc:
+        return False if exc.code in (400, 401, 403) else None
+    except Exception:  # noqa: BLE001 - mất mạng/timeout
+        return None
+
+
+@app.before_request
+def _require_login() -> Optional[Response]:
+    if not AUTH_REQUIRED or request.method != "POST" or request.path not in PROTECTED_PATHS:
+        return None
+
+    header = request.headers.get("Authorization", "")
+    token = header[7:].strip() if header.lower().startswith("bearer ") else ""
+    if not token:
+        return jsonify({"error": "unauthorized", "message": "Cần đăng nhập để trò chuyện với Kei."}), 401
+
+    key = hashlib.sha256(token.encode()).hexdigest()
+    now = time.time()
+    if _AUTH_CACHE.get(key, 0.0) > now:
+        return None
+
+    verdict = _verify_supabase_token(token)
+    if verdict is False:
+        return jsonify({"error": "unauthorized", "message": "Phiên đăng nhập không hợp lệ hoặc đã hết hạn."}), 401
+    if verdict:
+        if len(_AUTH_CACHE) > 2000:
+            for stale in [k for k, exp in _AUTH_CACHE.items() if exp <= now]:
+                _AUTH_CACHE.pop(stale, None)
+        _AUTH_CACHE[key] = now + _AUTH_TTL
+    # verdict None (Supabase tạm không truy cập được) → cho qua để Kei không "chết" theo.
+    return None
+
+
 @app.after_request
 def _add_cors_headers(response: Response) -> Response:
     """Cho phép gọi API từ cổng khác (Vite dev server / file:// ...)."""
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     return response
 
@@ -1671,6 +1732,9 @@ def api_health() -> Response:
     """
     engine_info = ENGINE.describe()
     configured = dict(engine_info)
+    tts_provider = LAST_TTS_PROVIDER or (
+        "openai" if isinstance(ENGINE, OpenAIEngine) else ("edge-tts" if EDGE_TTS_FALLBACK else "browser")
+    )
     if LAST_ERROR:
         engine_info = MockEngine().describe()
 
@@ -1680,6 +1744,7 @@ def api_health() -> Response:
             "engine": engine_info,
             "configured_engine": configured,
             "last_error": LAST_ERROR,
+            "auth_required": AUTH_REQUIRED,
             "personas": [
                 {"id": key, "label": value["label"], "emoji": value["emoji"]}
                 for key, value in PERSONAS.items()
@@ -1688,10 +1753,10 @@ def api_health() -> Response:
             "emotions": list(EMOTIONS),
             "tts": {
                 "available": LAST_TTS_PROVIDER is not None or EDGE_TTS_FALLBACK or isinstance(ENGINE, OpenAIEngine),
-                "provider": LAST_TTS_PROVIDER
-                or ("openai" if isinstance(ENGINE, OpenAIEngine) else ("edge-tts" if EDGE_TTS_FALLBACK else "browser")),
-                "model": TTS_MODEL,
-                "voice": EDGE_TTS_VOICES.get("vi", "") if LAST_TTS_PROVIDER == "edge-tts" else TTS_VOICE,
+                "provider": tts_provider,
+                # Model/giọng phải khớp provider thật (trước đây edge-tts vẫn báo "coral").
+                "model": TTS_MODEL if tts_provider == "openai" else ("edge-tts" if tts_provider == "edge-tts" else ""),
+                "voice": TTS_VOICE if tts_provider == "openai" else EDGE_TTS_VOICES.get("vi", "") if tts_provider == "edge-tts" else "",
                 "fallback": EDGE_TTS_FALLBACK,
                 "last_error": LAST_TTS_ERROR,
             },

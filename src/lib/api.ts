@@ -1,5 +1,6 @@
 import { normalizeEmotion } from './emotion';
 import { streamOfflineReply } from './localMock';
+import { authHeaders } from './supabase';
 import type { ChatRequest, Emotion, EngineInfo, HealthPayload, StreamEvent } from './types';
 
 /**
@@ -128,11 +129,16 @@ export async function streamChat(
     try {
         const response = await fetch(STREAM_ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
             body: JSON.stringify(request),
             signal,
         });
 
+        if (response.status === 401) {
+            // Phiên đăng nhập hết hạn: đừng "giả vờ" trả lời bằng chế độ offline.
+            handlers.onError?.('Phiên đăng nhập đã hết hạn — cậu đăng nhập lại giúp Kei nhé!');
+            return;
+        }
         if (!response.ok) {
             offlineReason = `Server Kei trả về lỗi HTTP ${response.status}.`;
             throw new Error(offlineReason);

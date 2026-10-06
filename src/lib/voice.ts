@@ -1,4 +1,5 @@
 import { closeMouth, opennessForChar, setMouth, shapeForChar } from './lipsync';
+import { authHeaders } from './supabase';
 import { clamp } from './utils';
 import { waifuBus } from './waifuBus';
 
@@ -360,7 +361,7 @@ async function playServerVoice(text: string, emotion?: string): Promise<boolean>
     try {
         const response = await fetch(TTS_ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
             body: JSON.stringify({
                 text,
                 emotion,
