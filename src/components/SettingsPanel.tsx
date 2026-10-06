@@ -89,7 +89,7 @@ export default function SettingsPanel({
 
     /**
      * Nghe thử "giọng Kei" đúng như khi trả lời: TTS theo ngôn ngữ đang chọn,
-     * nếu máy chưa có giọng nữ thì phát clip .wav có sẵn của model.
+     * nếu máy chưa có giọng nữ thì phát clip .mp3 có sẵn của model.
      */
     const testVoice = () => {
         void speakAsKei(SAMPLE_LINES[settings.language] ?? SAMPLE_LINES.ja, settings.language, settings.ttsRate, 'happy');
@@ -267,7 +267,7 @@ export default function SettingsPanel({
                             <small className="settings__note">
                                 {tts?.available
                                     ? `Đang dùng giọng nữ ${tts.voice} (${tts.provider}). Kei đọc đúng nội dung và đổi sắc thái theo cảm xúc của câu.`
-                                    : 'Backend chưa có giọng AI — Kei sẽ dùng giọng nữ của trình duyệt, hoặc clip thoại .wav gốc nếu máy không có giọng nữ.'}
+                                    : 'Backend chưa có giọng AI — Kei sẽ dùng giọng nữ của trình duyệt, hoặc clip thoại .mp3 gốc nếu máy không có giọng nữ.'}
                                 {tts?.last_error ? ` ⚠️ OpenAI TTS lỗi: ${tts.last_error}` : ''}
                             </small>
                         </div>

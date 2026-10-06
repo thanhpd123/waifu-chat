@@ -114,7 +114,7 @@ export async function streamChat(
     handlers: StreamHandlers,
     signal?: AbortSignal,
 ): Promise<void> {
-    let offlineReason = 'Không kết nối được tới server Kei (chưa chạy `python server/app.py`?).';
+    let offlineReason = 'Không kết nối được tới server Kei.';
     let produced = false;
 
     const tracked: StreamHandlers = {
@@ -171,8 +171,13 @@ export async function streamChat(
     }
 }
 
-/** Kiểm tra backend có sống không + lấy danh sách persona/ngôn ngữ. */
-export async function fetchHealth(timeoutMs = 2500): Promise<HealthPayload | null> {
+/**
+ * Kiểm tra backend có sống không + lấy danh sách persona/ngôn ngữ.
+ *
+ * Timeout rộng rãi vì trên Vercel, lần gọi đầu tiên phải "đánh thức" Python
+ * function (cold start ~2–5 giây) — quá ngắn thì badge sẽ báo Offline oan.
+ */
+export async function fetchHealth(timeoutMs = 12000): Promise<HealthPayload | null> {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), timeoutMs);
     try {

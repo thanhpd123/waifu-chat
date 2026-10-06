@@ -26,7 +26,7 @@ Biến môi trường (đọc từ `.env` ở thư mục gốc dự án)
 ---------------------------------------------------
     LLM_PROVIDER=openai | gemini | mock
     OPENAI_API_KEY=...   OPENAI_MODEL=gpt-4o-mini   OPENAI_BASE_URL=...
-    GEMINI_API_KEY=...   GEMINI_MODEL=gemini-2.5-flash
+    GEMINI_API_KEY=...   GEMINI_MODEL=gemini-flash-lite-latest
 """
 
 from __future__ import annotations
@@ -35,10 +35,13 @@ import json
 import os
 import random
 import re
+import threading
 import time
 import unicodedata
 from collections import OrderedDict, deque
+from datetime import datetime
 from typing import Any, Dict, Iterable, Iterator, List, Optional
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, request, stream_with_context
@@ -62,6 +65,8 @@ MAX_HISTORY = 16          # Số lượt hội thoại tối đa gửi lên LLM
 MAX_CHARS_PER_MESSAGE = 2000
 MAX_TOKENS = 260          # Giữ câu trả lời ngắn để TTS đọc tự nhiên
 TEMPERATURE = 0.85
+# Múi giờ cho câu "mấy giờ rồi?" khi chạy offline (Vercel mặc định là UTC).
+TIMEZONE = os.getenv("WAIFU_TIMEZONE", "Asia/Ho_Chi_Minh")
 
 # ---- Giọng Kei (OpenAI TTS) --------------------------------------------------
 # Giọng nữ anime dễ thương, đọc đúng nội dung câu trả lời (khác với file .wav
@@ -70,6 +75,11 @@ TEMPERATURE = 0.85
 # Mẹo "voice design": mô tả nhân vật càng cụ thể thì giọng càng ổn định và càng
 # ít bị trôi sang nam tính — cùng nguyên lý với prompt dạng "(mô tả giọng)nội
 # dung" của các model TTS thế hệ mới.
+# Alias luôn trỏ tới model Gemini mới nhất: Google khai tử model cũ khá nhanh
+# (vd. gemini-2.5-flash đã đóng với key mới) nên dùng alias để khỏi phải sửa code.
+DEFAULT_GEMINI_MODEL = "gemini-flash-lite-latest"
+GEMINI_FALLBACK_MODELS = ("gemini-flash-lite-latest", "gemini-flash-latest")
+
 TTS_MODEL = os.getenv("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
 TTS_VOICE = os.getenv("OPENAI_TTS_VOICE", "coral")
 TTS_INSTRUCTIONS = os.getenv(
@@ -356,6 +366,10 @@ class GeminiEngine(BaseEngine):
         self.model = model
         self._client = genai.Client(api_key=api_key)
 
+    def _models_to_try(self) -> List[str]:
+        """Model đã cấu hình trước, rồi tới alias dự phòng (không trùng lặp)."""
+        return list(dict.fromkeys([self.model, *GEMINI_FALLBACK_MODELS]))
+
     def stream(
         self,
         messages: List[Dict[str, str]],
@@ -364,27 +378,55 @@ class GeminiEngine(BaseEngine):
     ) -> Iterator[str]:
         try:
             from google.genai import types  # type: ignore[import-not-found]
+        except Exception as exc:  # noqa: BLE001
+            raise EngineError(format_api_error(exc, "Gemini")) from exc
 
-            contents = [
-                types.Content(
-                    role="user" if item["role"] == "user" else "model",
-                    parts=[types.Part(text=item["content"])],
-                )
-                for item in messages
-            ]
+        contents = [
+            types.Content(
+                role="user" if item["role"] == "user" else "model",
+                parts=[types.Part(text=item["content"])],
+            )
+            for item in messages
+        ]
+
+        last_exc: Optional[Exception] = None
+        for model in self._models_to_try():
+            extra: Dict[str, Any] = {}
+            if "2.5-flash" in model:
+                # Gemini 2.5 Flash mặc định "suy nghĩ" trước khi trả lời: chậm hơn và
+                # token suy nghĩ ăn vào MAX_TOKENS → câu trả lời bị cụt/rỗng.
+                extra["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+            elif "flash" in model and "lite" not in model:
+                # Gemini 3+ Flash cũng "suy nghĩ" mặc định (câu trả lời bị cụt sau
+                # vài chữ) → giảm xuống mức tối thiểu.
+                extra["thinking_config"] = types.ThinkingConfig(thinking_level="minimal")
             config = types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 temperature=TEMPERATURE,
                 max_output_tokens=MAX_TOKENS,
+                **extra,
             )
-            for chunk in self._client.models.generate_content_stream(
-                model=self.model, contents=contents, config=config
-            ):
-                text = getattr(chunk, "text", None)
-                if text:
-                    yield text
-        except Exception as exc:  # noqa: BLE001
-            raise EngineError(format_api_error(exc, "Gemini")) from exc
+            produced = False
+            try:
+                for chunk in self._client.models.generate_content_stream(
+                    model=model, contents=contents, config=config
+                ):
+                    text = getattr(chunk, "text", None)
+                    if text:
+                        produced = True
+                        yield text
+            except Exception as exc:  # noqa: BLE001
+                # Đã nói được một nửa thì không đổi model giữa chừng.
+                if produced:
+                    raise EngineError(format_api_error(exc, "Gemini")) from exc
+                # Model bị Google khai tử (404) hoặc đang quá tải (503) → thử alias
+                # dự phòng thay vì rơi xuống bộ não offline.
+                last_exc = exc
+                continue
+            if produced:
+                return
+        if last_exc is not None:
+            raise EngineError(format_api_error(last_exc, "Gemini")) from last_exc
 
 
 # ------------------------------------------------------------------------------
@@ -504,18 +546,49 @@ FALLBACK_MOCK: Dict[str, Any] = {
 
 
 # --- Trí nhớ ngắn hạn của Kei khi offline --------------------------------------
-# App chỉ phục vụ một người dùng trên máy, nên giữ "trí nhớ" ở cấp module là đủ:
-# Kei nhớ tên, sở thích, cảm xúc và chủ đề vừa nói cho tới khi tắt server.
-_MEMORY: Dict[str, Any] = {
-    "name": None,          # tên người dùng Kei học được từ hội thoại
-    "likes": [],           # những thứ người dùng nói là thích (tối đa 6)
-    "dislikes": [],
-    "mood": "neutral",     # cảm xúc gần nhất của NGƯỜI DÙNG
-    "last_intent": None,
-    "topics": {},          # ngôn ngữ -> deque(8) chủ đề gần đây (tách theo ngôn ngữ)
-    "turns": 0,
-    "used": {},            # intent|lang -> deque(3) câu vừa dùng (tránh lặp y hệt)
-}
+# Trên Vercel (serverless) một instance phục vụ NHIỀU người dùng cùng lúc, nên
+# trí nhớ KHÔNG được để ở cấp module (người này sẽ thấy tên của người kia).
+# Thay vào đó, mỗi request dựng lại trí nhớ từ lịch sử hội thoại client gửi lên
+# và lưu trong thread-local → không rò rỉ giữa các request chạy song song.
+
+
+def _fresh_memory() -> Dict[str, Any]:
+    return {
+        "name": None,          # tên người dùng Kei học được từ hội thoại
+        "likes": [],           # những thứ người dùng nói là thích (tối đa 6)
+        "dislikes": [],
+        "mood": "neutral",     # cảm xúc gần nhất của NGƯỜI DÙNG
+        "last_intent": None,
+        "topics": {},          # ngôn ngữ -> deque(8) chủ đề gần đây (tách theo ngôn ngữ)
+        "turns": 0,
+        "used": {},            # intent|lang -> deque(3) câu vừa dùng (tránh lặp y hệt)
+        "said": [],            # các câu Kei đã nói trong lịch sử (tránh lặp lại)
+    }
+
+
+class _RequestMemory:
+    """Trí nhớ riêng cho từng request (thread-local), dùng như một dict."""
+
+    def __init__(self) -> None:
+        self._local = threading.local()
+
+    def _data(self) -> Dict[str, Any]:
+        data = getattr(self._local, "data", None)
+        if data is None:
+            data = self._local.data = _fresh_memory()
+        return data
+
+    def __getitem__(self, key: str) -> Any:
+        return self._data()[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self._data()[key] = value
+
+    def reset(self) -> None:
+        self._local.data = _fresh_memory()
+
+
+_MEMORY = _RequestMemory()
 
 # Từ nối/đại từ/động từ cần bỏ khi đoán "chủ đề" hoặc tên riêng.
 _STOPWORDS = {
@@ -594,10 +667,16 @@ def _hits(normalized: str, keywords: Iterable[str]) -> int:
     return total
 
 
+def _recently_said(line: str) -> bool:
+    """Câu mẫu này đã xuất hiện trong mấy lượt trả lời gần đây của Kei chưa?"""
+    probe = line.split("{", 1)[0].strip()[:24]
+    return bool(probe) and any(probe in said for said in _MEMORY["said"])
+
+
 def _pick_line(key: str, pool: List[str]) -> str:
     """Chọn câu Kei chưa dùng gần đây → trò chuyện đỡ nhàm."""
     recent = _MEMORY["used"].setdefault(key, deque(maxlen=3))
-    fresh = [line for line in pool if line not in recent] or pool
+    fresh = [line for line in pool if line not in recent and not _recently_said(line)] or pool
     choice = random.choice(fresh)
     recent.append(choice)
     return choice
@@ -1050,6 +1129,14 @@ def _try_math(normalized: str) -> Optional[str]:
     )
 
 
+def _local_now() -> datetime:
+    """Giờ theo múi giờ của người dùng (server Vercel chạy giờ UTC)."""
+    try:
+        return datetime.now(ZoneInfo(TIMEZONE))
+    except Exception:  # noqa: BLE001 - thiếu dữ liệu múi giờ → dùng giờ máy
+        return datetime.now()
+
+
 def _try_clock(normalized: str) -> Optional[str]:
     """Trả lời giờ/ngày thật của máy — thứ duy nhất offline Kei biết chắc."""
     if any(k in normalized for k in ("tam biet", "bye", "chao ngu", "di ngu", "ngu ngon", "see you", "oyasumi", "さようなら", "おやすみ")):
@@ -1058,7 +1145,7 @@ def _try_clock(normalized: str) -> Optional[str]:
     if any(k in normalized for k in ("tam biet", "bye", "chao ngu", "di ngu", "ngu ngon", "see you", "oyasumi", "さようなら", "おやすみ")):
         return None  # để ý định "bye" xử lý (câu chào tạm biệt cần lời đáp riêng)
 
-    now = time.strftime("%H:%M")
+    now = _local_now().strftime("%H:%M")
     if _hits(normalized, ("may gio", "gio roi", "bay gio", "what time", "何時")):
         return random.choice(
             (
@@ -1072,7 +1159,7 @@ def _try_clock(normalized: str) -> Optional[str]:
 def _try_date(normalized: str) -> Optional[str]:
     if not _hits(normalized, ("hom nay ngay", "ngay bao nhieu", "thu may", "what day", "何日")):
         return None
-    return f"Hôm nay là {time.strftime('%d/%m/%Y')} đó cậu. Kei có nhớ ngày mà!"
+    return f"Hôm nay là {_local_now().strftime('%d/%m/%Y')} đó cậu. Kei có nhớ ngày mà!"
 
 
 def _try_luck(normalized: str) -> Optional[str]:
@@ -1147,6 +1234,48 @@ LEGACY_REPLY_OVERRIDES: Dict[str, Dict[str, List[str]]] = {
 }
 
 
+ALL_INTENTS: List[Dict[str, Any]] = SMART_INTENTS + [
+    {
+        "name": item["name"],
+        "keywords": item["keywords"],
+        "emotion": item["emotion"],
+        "replies": {"vi": item["pool"], **LEGACY_REPLY_OVERRIDES.get(item["name"], {})},
+    }
+    for item in MOCK_INTENTS
+]
+
+
+def _best_intent(normalized: str) -> Optional[Dict[str, Any]]:
+    """Ý định khớp nhiều từ khoá nhất (None nếu không khớp gì)."""
+    best_intent, best_score = None, 0
+    for intent in ALL_INTENTS:
+        score = _hits(normalized, intent["keywords"])
+        if score > best_score:
+            best_intent, best_score = intent, score
+    return best_intent
+
+
+def _replay_history(messages: List[Dict[str, str]], language: str) -> None:
+    """Dựng lại trí nhớ ngắn hạn (tên, sở thích, chủ đề, tâm trạng) từ lịch sử
+    hội thoại — nhờ vậy server không cần giữ trạng thái giữa các request."""
+    _MEMORY.reset()
+    for item in messages:
+        content = (item.get("content") or "").strip()
+        if not content:
+            continue
+        if item.get("role") != "user":
+            _MEMORY["said"] = (_MEMORY["said"] + [content])[-6:]
+            continue
+        normalized = _norm(content)
+        _MEMORY["turns"] += 1
+        _learn_about_user(content, normalized)
+        intent = _best_intent(normalized)
+        _MEMORY["last_intent"] = intent["name"] if intent else None
+        if intent and intent["name"] in ("sad_user", "angry_user", "happy_user", "feelings"):
+            _MEMORY["mood"] = intent["emotion"]
+        _remember_topic(content, normalized, language)
+
+
 def _legacy_fallback_pool() -> List[str]:
     """Câu dự phòng của bảng cũ (đã có sẵn chất giọng của Kei)."""
     return FALLBACK_MOCK["pool"]
@@ -1188,20 +1317,7 @@ def _answer_offline(
             return _flavor(quick, persona, affection, user_name, language), "happy"
 
     # 2) Ý định: bảng mới chấm điểm, bảng cũ (MOCK_INTENTS) làm dự phòng từ khoá.
-    best_intent, best_score = None, 0
-    for intent in SMART_INTENTS + [
-        {
-            "name": item["name"],
-            "keywords": item["keywords"],
-            "emotion": item["emotion"],
-            "replies": {"vi": item["pool"], **LEGACY_REPLY_OVERRIDES.get(item["name"], {})},
-        }
-        for item in MOCK_INTENTS
-    ]:
-        score = _hits(normalized, intent["keywords"])
-        if score > best_score:
-            best_intent, best_score = intent, score
-
+    best_intent = _best_intent(normalized)
     if best_intent is not None:
         key = f'{best_intent["name"]}|{language}'
         lines = _lang_lines(best_intent["replies"], language)
@@ -1265,10 +1381,15 @@ class MockEngine(BaseEngine):
         user_name = str(options.get("user_name") or "").strip()
 
         user_text = ""
-        for item in reversed(messages):
+        last_index = len(messages)
+        for index in range(len(messages) - 1, -1, -1):
+            item = messages[index]
             if item.get("role") == "user" and item.get("content"):
                 user_text = item["content"]
+                last_index = index
                 break
+
+        _replay_history(messages[:last_index], language)
 
         raw = user_text.strip()
         normalized = _norm(raw)
@@ -1324,14 +1445,14 @@ def create_engine() -> BaseEngine:
     if provider == "gemini" and _is_real_key(_env("GEMINI_API_KEY")):
         return GeminiEngine(
             api_key=_env("GEMINI_API_KEY") or "",
-            model=_env("GEMINI_MODEL", "LLM_MODEL") or "gemini-2.5-flash",
+            model=_env("GEMINI_MODEL", "LLM_MODEL") or DEFAULT_GEMINI_MODEL,
         )
 
     # Provider không khớp cấu hình -> thử "cứu" bằng key còn lại.
     if _is_real_key(_env("GEMINI_API_KEY")):
         return GeminiEngine(
             api_key=_env("GEMINI_API_KEY") or "",
-            model=_env("GEMINI_MODEL", "LLM_MODEL") or "gemini-2.5-flash",
+            model=_env("GEMINI_MODEL", "LLM_MODEL") or DEFAULT_GEMINI_MODEL,
         )
     if _is_real_key(_env("OPENAI_API_KEY")):
         return OpenAIEngine(

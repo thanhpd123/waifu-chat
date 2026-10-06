@@ -20,3 +20,6 @@ google-genai>=1.0
 # Khi key OpenAI lỗi, backend vẫn đọc được bằng giọng nữ: vi-VN-HoaiMyNeural
 # (tiếng Việt), ja-JP-NanamiNeural, en-US-AvaNeural. Tắt bằng EDGE_TTS_FALLBACK=0.
 edge-tts>=7.0
+
+# Dữ liệu múi giờ (Windows và một số môi trường serverless không có sẵn)
+tzdata>=2024.1
