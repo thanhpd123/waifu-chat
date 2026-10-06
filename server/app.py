@@ -26,7 +26,7 @@ Biến môi trường (đọc từ `.env` ở thư mục gốc dự án)
 ---------------------------------------------------
     LLM_PROVIDER=openai | gemini | mock
     OPENAI_API_KEY=...   OPENAI_MODEL=gpt-4o-mini   OPENAI_BASE_URL=...
-    GEMINI_API_KEY=...   GEMINI_MODEL=gemini-2.5-flash
+    GEMINI_API_KEY=...   GEMINI_MODEL=gemini-flash-lite-latest
 """
 
 from __future__ import annotations
@@ -75,6 +75,11 @@ TIMEZONE = os.getenv("WAIFU_TIMEZONE", "Asia/Ho_Chi_Minh")
 # Mẹo "voice design": mô tả nhân vật càng cụ thể thì giọng càng ổn định và càng
 # ít bị trôi sang nam tính — cùng nguyên lý với prompt dạng "(mô tả giọng)nội
 # dung" của các model TTS thế hệ mới.
+# Alias luôn trỏ tới model Gemini mới nhất: Google khai tử model cũ khá nhanh
+# (vd. gemini-2.5-flash đã đóng với key mới) nên dùng alias để khỏi phải sửa code.
+DEFAULT_GEMINI_MODEL = "gemini-flash-lite-latest"
+GEMINI_FALLBACK_MODELS = ("gemini-flash-lite-latest", "gemini-flash-latest")
+
 TTS_MODEL = os.getenv("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
 TTS_VOICE = os.getenv("OPENAI_TTS_VOICE", "coral")
 TTS_INSTRUCTIONS = os.getenv(
@@ -361,6 +366,10 @@ class GeminiEngine(BaseEngine):
         self.model = model
         self._client = genai.Client(api_key=api_key)
 
+    def _models_to_try(self) -> List[str]:
+        """Model đã cấu hình trước, rồi tới alias dự phòng (không trùng lặp)."""
+        return list(dict.fromkeys([self.model, *GEMINI_FALLBACK_MODELS]))
+
     def stream(
         self,
         messages: List[Dict[str, str]],
@@ -369,33 +378,55 @@ class GeminiEngine(BaseEngine):
     ) -> Iterator[str]:
         try:
             from google.genai import types  # type: ignore[import-not-found]
+        except Exception as exc:  # noqa: BLE001
+            raise EngineError(format_api_error(exc, "Gemini")) from exc
 
-            contents = [
-                types.Content(
-                    role="user" if item["role"] == "user" else "model",
-                    parts=[types.Part(text=item["content"])],
-                )
-                for item in messages
-            ]
+        contents = [
+            types.Content(
+                role="user" if item["role"] == "user" else "model",
+                parts=[types.Part(text=item["content"])],
+            )
+            for item in messages
+        ]
+
+        last_exc: Optional[Exception] = None
+        for model in self._models_to_try():
             extra: Dict[str, Any] = {}
-            if "2.5-flash" in self.model:
+            if "2.5-flash" in model:
                 # Gemini 2.5 Flash mặc định "suy nghĩ" trước khi trả lời: chậm hơn và
                 # token suy nghĩ ăn vào MAX_TOKENS → câu trả lời bị cụt/rỗng.
                 extra["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+            elif "flash" in model and "lite" not in model:
+                # Gemini 3+ Flash cũng "suy nghĩ" mặc định (câu trả lời bị cụt sau
+                # vài chữ) → giảm xuống mức tối thiểu.
+                extra["thinking_config"] = types.ThinkingConfig(thinking_level="minimal")
             config = types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 temperature=TEMPERATURE,
                 max_output_tokens=MAX_TOKENS,
                 **extra,
             )
-            for chunk in self._client.models.generate_content_stream(
-                model=self.model, contents=contents, config=config
-            ):
-                text = getattr(chunk, "text", None)
-                if text:
-                    yield text
-        except Exception as exc:  # noqa: BLE001
-            raise EngineError(format_api_error(exc, "Gemini")) from exc
+            produced = False
+            try:
+                for chunk in self._client.models.generate_content_stream(
+                    model=model, contents=contents, config=config
+                ):
+                    text = getattr(chunk, "text", None)
+                    if text:
+                        produced = True
+                        yield text
+            except Exception as exc:  # noqa: BLE001
+                # Đã nói được một nửa thì không đổi model giữa chừng.
+                if produced:
+                    raise EngineError(format_api_error(exc, "Gemini")) from exc
+                # Model bị Google khai tử (404) hoặc đang quá tải (503) → thử alias
+                # dự phòng thay vì rơi xuống bộ não offline.
+                last_exc = exc
+                continue
+            if produced:
+                return
+        if last_exc is not None:
+            raise EngineError(format_api_error(last_exc, "Gemini")) from last_exc
 
 
 # ------------------------------------------------------------------------------
@@ -1414,14 +1445,14 @@ def create_engine() -> BaseEngine:
     if provider == "gemini" and _is_real_key(_env("GEMINI_API_KEY")):
         return GeminiEngine(
             api_key=_env("GEMINI_API_KEY") or "",
-            model=_env("GEMINI_MODEL", "LLM_MODEL") or "gemini-2.5-flash",
+            model=_env("GEMINI_MODEL", "LLM_MODEL") or DEFAULT_GEMINI_MODEL,
         )
 
     # Provider không khớp cấu hình -> thử "cứu" bằng key còn lại.
     if _is_real_key(_env("GEMINI_API_KEY")):
         return GeminiEngine(
             api_key=_env("GEMINI_API_KEY") or "",
-            model=_env("GEMINI_MODEL", "LLM_MODEL") or "gemini-2.5-flash",
+            model=_env("GEMINI_MODEL", "LLM_MODEL") or DEFAULT_GEMINI_MODEL,
         )
     if _is_real_key(_env("OPENAI_API_KEY")):
         return OpenAIEngine(

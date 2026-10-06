@@ -36,6 +36,7 @@ Các bước:
    | --- | --- |
    | `LLM_PROVIDER` | `gemini` |
    | `GEMINI_API_KEY` | key vừa lấy |
+   | `GEMINI_MODEL` (tuỳ chọn) | `gemini-flash-lite-latest` (mặc định — nhanh, gói free nhiều lượt) |
 3. **Redeploy** (biến môi trường chỉ có hiệu lực ở lần deploy sau khi thêm).
 4. Mở `https://<tên-app>.vercel.app/api/health` — thấy `"engine": {"kind": "gemini", ... "online": true}` là xong.
 
