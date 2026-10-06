@@ -1601,6 +1601,13 @@ def _add_cors_headers(response: Response) -> Response:
     return response
 
 
+@app.errorhandler(404)
+def _not_found(_exc: Exception) -> Response:
+    """404 dạng JSON kèm đường dẫn Flask nhận được — dễ phân biệt với 404 của
+    Vercel (khi function chưa được deploy) lúc chẩn đoán."""
+    return jsonify({"error": "not_found", "path": request.path, "service": "kei-api"}), 404
+
+
 @app.route("/api/<path:_any>", methods=["OPTIONS"])
 def _preflight(_any: str) -> Response:  # pragma: no cover - chỉ phục vụ CORS
     return Response(status=204)
