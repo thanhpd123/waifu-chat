@@ -6,7 +6,7 @@ import { waifuBus } from './waifuBus';
  * Giọng của Kei = HYBRID:
  *   1. Câu trả lời trong chat → TTS đúng ngôn ngữ (đọc được nội dung bất kỳ).
  *   2. Phản ứng (xoa đầu / vẫy tay / 🎤 / khi máy chưa có giọng TTS phù hợp)
- *      → clip thoại (.wav) có sẵn của model, do `Waifu.tsx` phát qua `waifuBus`.
+ *      → clip thoại (.mp3) có sẵn của model, do `Waifu.tsx` phát qua `waifuBus`.
  */
 
 /**
@@ -397,7 +397,7 @@ async function playServerVoice(text: string, emotion?: string): Promise<boolean>
  * Phát "giọng Kei" cho một câu (hybrid, theo thứ tự ưu tiên):
  *   1. Server TTS (OpenAI, giọng nữ anime) → đọc ĐÚNG nội dung câu trả lời.
  *   2. TTS của trình duyệt nếu máy có giọng đúng ngôn ngữ.
- *   3. Clip thoại (.wav) có sẵn của model — đúng giọng gốc Kei, nhưng là câu thu sẵn.
+ *   3. Clip thoại (.mp3) có sẵn của model — đúng giọng gốc Kei, nhưng là câu thu sẵn.
  */
 export async function speakAsKei(text: string, lang: string, rate: number, emotion?: string): Promise<void> {
     configureVoice({ rate, language: lang });

@@ -1,79 +1,44 @@
-# React + TypeScript + Vite
+# 🌸 Kei · Live2D Chat
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Chatbox anime với nhân vật Live2D: trò chuyện, đổi biểu cảm theo cảm xúc và nhép miệng theo giọng nói.
 
-Currently, two official plugins are available:
+- **Frontend**: React + Vite + PixiJS / pixi-live2d-display (`src/`)
+- **Backend "bộ não"**: Flask + Server-Sent Events (`server/app.py`)
+  - LLM: Gemini (có gói miễn phí) hoặc OpenAI; thiếu key → bộ não offline vẫn chat được
+  - Giọng nói: OpenAI TTS, hoặc **edge-tts miễn phí** (giọng nữ HoaiMy / Nanami / Ava)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Chạy local
 
-## React Compiler
+```bash
+npm ci
+python -m venv .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+cp .env.example .env                 # điền GEMINI_API_KEY
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+python server/app.py                 # backend: http://127.0.0.1:8000
+npm run dev                          # frontend: http://localhost:5173 (proxy /api → backend)
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Deploy lên Vercel (miễn phí, gói Hobby)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Repo đã có sẵn cấu hình, chỉ cần import vào Vercel:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- `vercel.json` — build Vite ra `dist/`, rewrite mọi `/api/*` về Python function, cache asset tĩnh.
+- `api/index.py` — Serverless Function chạy **đúng Flask app** trong `server/app.py`
+  (Vercel tự cài `requirements.txt`).
 
-.venv\Scripts\python.exe server\app.py
-npm run dev
------
-python server/app.py
-npm run dev
-```
+Các bước:
+
+1. Lấy API key Gemini **miễn phí** tại <https://aistudio.google.com/apikey>.
+2. Vercel → Project → **Settings → Environment Variables**, thêm:
+   | Tên | Giá trị |
+   | --- | --- |
+   | `LLM_PROVIDER` | `gemini` |
+   | `GEMINI_API_KEY` | key vừa lấy |
+3. **Redeploy** (biến môi trường chỉ có hiệu lực ở lần deploy sau khi thêm).
+4. Mở `https://<tên-app>.vercel.app/api/health` — thấy `"engine": {"kind": "gemini", ... "online": true}` là xong.
+
+Không có key thì Kei vẫn chạy bằng bộ não offline phía server, và giọng đọc vẫn dùng edge-tts miễn phí.
+
+> Lưu ý: không đặt `OPENAI_API_KEY` nếu không muốn phát sinh chi phí — OpenAI tính phí theo lượt dùng.

@@ -12,22 +12,22 @@
 			"": [
 				{
 					"File": "motions/01_kei_en.motion3.json",
-					"Sound": "sounds/01_kei_en.wav",
+					"Sound": "sounds/01_kei_en.mp3",
 					"MotionSync": "Vowels_CRI"
 				},
 				{
 					"File": "motions/01_kei_jp.motion3.json",
-					"Sound": "sounds/01_kei_jp.wav",
+					"Sound": "sounds/01_kei_jp.mp3",
 					"MotionSync": "Vowels_CRI"
 				},
 				{
 					"File": "motions/01_kei_ko.motion3.json",
-					"Sound": "sounds/01_kei_ko.wav",
+					"Sound": "sounds/01_kei_ko.mp3",
 					"MotionSync": "Vowels_CRI"
 				},
 				{
 					"File": "motions/01_kei_zh.motion3.json",
-					"Sound": "sounds/01_kei_zh.wav",
+					"Sound": "sounds/01_kei_zh.mp3",
 					"MotionSync": "Vowels_CRI"
 				}
 			]

@@ -14,7 +14,7 @@ export interface WaifuEvents {
     /** Kei được xoa đầu / chạm vào. */
     pat: { source: 'hit' | 'click' };
     /**
-     * Phát "giọng Kei" — chính là file thoại (.wav) có sẵn của model Live2D,
+     * Phát "giọng Kei" — chính là file thoại (.mp3) có sẵn của model Live2D,
      * KHÔNG phải TTS. `index` chọn bản thoại: 0 = en, 1 = jp, 2 = ko, 3 = zh.
      */
     sampleVoice: { index?: number };

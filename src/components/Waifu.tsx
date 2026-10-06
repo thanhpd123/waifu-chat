@@ -240,7 +240,7 @@ export default function Waifu({ settings, affection }: WaifuProps) {
     }, []);
 
     /**
-     * Phát "giọng Kei" thật: tạm bật âm thanh của model để phát file thoại (.wav)
+     * Phát "giọng Kei" thật: tạm bật âm thanh của model để phát file thoại (.mp3)
      * gắn với motion, rồi tắt lại ngay khi thư viện đã tạo xong audio (tránh Kei
      * tự lẩm bẩm khi rảnh).
      */
@@ -540,7 +540,7 @@ export default function Waifu({ settings, affection }: WaifuProps) {
             if (delta > 0) burstHearts('✨', 3);
         });
 
-        // "Giọng Kei" = file thoại .wav của model (không phải TTS).
+        // "Giọng Kei" = file thoại .mp3 của model (không phải TTS).
         const offSampleVoice = waifuBus.on('sampleVoice', ({ index }) => {
             playSampleVoice(index);
         });
