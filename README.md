@@ -59,7 +59,10 @@ Bật đăng nhập để mỗi người có tài khoản riêng, nhiều cuộc
    | Tên | Giá trị |
    | --- | --- |
    | `VITE_SUPABASE_URL` | Project URL, vd. `https://abcd1234.supabase.co` |
-   | `VITE_SUPABASE_ANON_KEY` | anon public key |
+   | `VITE_SUPABASE_ANON_KEY` | anon public key / publishable key |
+
+   Tên kiểu Next.js do tích hợp Supabase ↔ Vercel tự tạo (`NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) cũng dùng được, không cần đổi tên.
 5. Supabase → **Authentication → URL Configuration**:
    - *Site URL*: `https://waifu-chat-azure.vercel.app`
    - *Redirect URLs*: thêm `https://waifu-chat-azure.vercel.app/**`
