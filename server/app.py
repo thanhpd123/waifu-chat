@@ -1735,6 +1735,29 @@ def _read_request() -> Dict[str, Any]:
     }
 
 
+@app.get("/api/public-config")
+def api_public_config() -> Response:
+    """Cấu hình CÔNG KHAI cho frontend, đọc lúc chạy thay vì lúc build.
+
+    Nhờ vậy thêm/đổi biến Supabase trên Vercel là có hiệu lực ngay, frontend và
+    backend luôn khớp nhau (không còn cảnh backend đòi đăng nhập trong khi bản
+    build cũ của frontend chưa có Supabase). Chỉ chứa giá trị vốn được phép
+    công khai: URL project + publishable/anon key (dữ liệu được bảo vệ bằng RLS).
+    """
+    google = _first_env("VITE_ENABLE_GOOGLE_LOGIN", "NEXT_PUBLIC_ENABLE_GOOGLE_LOGIN") == "1"
+    response = jsonify(
+        {
+            "supabase_url": SUPABASE_URL or None,
+            "supabase_key": SUPABASE_ANON_KEY or None,
+            "auth_required": AUTH_REQUIRED,
+            "google_login": google,
+        }
+    )
+    # CDN của Vercel giữ 5 phút → trang chủ không phải chờ Python "thức dậy".
+    response.headers["Cache-Control"] = "public, max-age=60, s-maxage=300, stale-while-revalidate=600"
+    return response
+
+
 @app.get("/api/health")
 def api_health() -> Response:
     """Frontend dùng để hiển thị badge 'Online / Offline'.

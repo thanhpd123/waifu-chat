@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../lib/auth';
 import { linkHandler, navigate } from '../lib/router';
-import { authEnabled, googleLoginEnabled, supabase } from '../lib/supabase';
 import './landing.css';
 
 type Mode = 'signin' | 'signup';
@@ -29,7 +28,7 @@ function nextPath(): string {
 }
 
 export default function Login() {
-    const { user, loading } = useAuth();
+    const { user, loading, client: supabase, authEnabled, googleLogin: googleLoginEnabled } = useAuth();
     const [mode, setMode] = useState<Mode>('signin');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -116,7 +115,9 @@ export default function Login() {
                     </p>
                 </div>
 
-                {!authEnabled ? (
+                {loading ? (
+                    <p className="kp-auth__loading">Đang kết nối…</p>
+                ) : !authEnabled ? (
                     <div className="kp-auth__notice">
                         <p>
                             Đăng nhập chưa được cấu hình (thiếu <code>VITE_SUPABASE_URL</code> /{' '}

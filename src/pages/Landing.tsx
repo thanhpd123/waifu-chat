@@ -1,6 +1,5 @@
 import { useAuth } from '../lib/auth';
 import { linkHandler } from '../lib/router';
-import { authEnabled } from '../lib/supabase';
 import './landing.css';
 
 const FEATURES = [
@@ -69,9 +68,11 @@ const FAQ = [
 ];
 
 export default function Landing() {
-    const { user } = useAuth();
+    const { user, authEnabled, loading } = useAuth();
     const signedIn = Boolean(user);
-    const primaryHref = signedIn || !authEnabled ? '/chat' : '/login?next=/chat';
+    // /chat tự chuyển sang /login khi cần, nên lúc chưa tải xong cấu hình cứ trỏ vào /chat.
+    const primaryHref = signedIn || !authEnabled || loading ? '/chat' : '/login?next=/chat';
+    const navHref = signedIn || (!authEnabled && !loading) ? '/chat' : '/login?next=/chat';
     const primaryLabel = signedIn ? 'Tiếp tục trò chuyện' : 'Trò chuyện với Kei';
 
     return (
@@ -88,8 +89,8 @@ export default function Landing() {
                     <a href="#how">Cách dùng</a>
                     <a href="#faq">Hỏi đáp</a>
                 </div>
-                <a className="kp-btn kp-btn--ghost kp-btn--sm" href={primaryHref} onClick={linkHandler(primaryHref)}>
-                    {signedIn ? 'Vào chat' : authEnabled ? 'Đăng nhập' : 'Vào chat'}
+                <a className="kp-btn kp-btn--ghost kp-btn--sm" href={navHref} onClick={linkHandler(navHref)}>
+                    {signedIn ? 'Vào chat' : authEnabled || loading ? 'Đăng nhập' : 'Vào chat'}
                 </a>
             </nav>
 

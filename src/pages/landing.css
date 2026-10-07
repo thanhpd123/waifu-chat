@@ -783,3 +783,10 @@
         transition: none !important;
     }
 }
+
+.kp-auth__loading {
+    margin: 28px 0 8px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--kp-muted);
+}

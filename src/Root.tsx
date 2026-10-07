@@ -5,7 +5,6 @@ import { AuthProvider, displayName, useAuth } from './lib/auth';
 import { createLocalStore, createSupabaseStore } from './lib/chatStore';
 import { loadCubismCore } from './lib/live2dCore';
 import { navigate, usePath } from './lib/router';
-import { authEnabled, supabase } from './lib/supabase';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 
@@ -49,7 +48,7 @@ function Splash() {
 }
 
 function ChatRoute() {
-    const { loading, user, signOut } = useAuth();
+    const { loading, user, client, authEnabled, signOut } = useAuth();
     const mustLogin = authEnabled && !loading && !user;
 
     useEffect(() => {
@@ -57,9 +56,19 @@ function ChatRoute() {
     }, [mustLogin]);
 
     // Mỗi tài khoản một "kho" riêng; chưa cấu hình Supabase → lưu trong trình duyệt.
+    // Phụ thuộc vào user.id (không phải object user): Supabase tạo object mới mỗi lần
+    // làm mới token, nếu không thì danh sách chat sẽ bị tải lại giữa chừng.
+    const userId = user?.id;
     const store = useMemo(
-        () => (supabase && user ? createSupabaseStore(supabase, user.id) : authEnabled ? null : createLocalStore()),
-        [user],
+        () =>
+            loading
+                ? null
+                : client && userId
+                  ? createSupabaseStore(client, userId)
+                  : authEnabled
+                    ? null
+                    : createLocalStore(),
+        [loading, client, userId, authEnabled],
     );
 
     if (loading || !store) return <Splash />;
