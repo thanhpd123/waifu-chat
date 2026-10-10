@@ -1913,7 +1913,8 @@ def api_chat_stream() -> Response:
         headers={
             "Cache-Control": "no-cache, no-transform",
             "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
+            # Không đặt "Connection: keep-alive": header hop-by-hop bị WSGI (PEP 3333) cấm,
+            # có thể khiến proxy giữ kết nối mở sau khi Kei đã trả lời xong.
         },
     )
 

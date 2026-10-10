@@ -27,7 +27,13 @@ function isAbort(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError';
 }
 
-function dispatch(event: StreamEvent, handlers: StreamHandlers, state: { sawDone: boolean }): void {
+interface StreamState {
+    sawDone: boolean;
+    /** Đã nhận `done`/`error` → câu trả lời kết thúc, không cần đọc thêm. */
+    finished: boolean;
+}
+
+function dispatch(event: StreamEvent, handlers: StreamHandlers, state: StreamState): void {
     switch (event.type) {
         case 'meta':
             handlers.onMeta?.(event.engine);
@@ -43,6 +49,7 @@ function dispatch(event: StreamEvent, handlers: StreamHandlers, state: { sawDone
             break;
         case 'done':
             state.sawDone = true;
+            state.finished = true;
             handlers.onDone?.({
                 text: event.text,
                 emotion: normalizeEmotion(event.emotion),
@@ -50,6 +57,7 @@ function dispatch(event: StreamEvent, handlers: StreamHandlers, state: { sawDone
             });
             break;
         case 'error':
+            state.finished = true;
             handlers.onError?.(event.message);
             break;
         default:
@@ -66,7 +74,7 @@ async function readSSE(
     if (!reader) return;
 
     const decoder = new TextDecoder();
-    const state = { sawDone: false };
+    const state: StreamState = { sawDone: false, finished: false };
     let buffer = '';
 
     try {
@@ -95,14 +103,14 @@ async function readSSE(
                 } catch {
                     /* khung SSE hỏng → bỏ qua, không làm chết luồng */
                 }
+                // Có `done` là xong: KHÔNG chờ server đóng kết nối. Trên Vercel/proxy kết nối
+                // có thể còn mở thêm vài chục giây → app kẹt ở "đang trả lời", Enter không gửi được.
+                if (state.finished) return;
             }
         }
     } finally {
-        try {
-            await reader.cancel();
-        } catch {
-            /* ignore */
-        }
+        // Không `await`: huỷ đọc là việc dọn dẹp, không được bắt người dùng chờ.
+        reader.cancel().catch(() => undefined);
     }
 }
 
