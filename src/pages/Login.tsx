@@ -17,6 +17,9 @@ function friendlyError(message: string): string {
     if (low.includes('rate limit') || low.includes('too many') || low.includes('security purposes'))
         return 'Thao tác hơi nhanh quá, cậu đợi một lát rồi thử lại nhé.';
     if (low.includes('provider is not enabled')) return 'Đăng nhập Google chưa được bật trong Supabase.';
+    // Máy gửi email mặc định của Supabase chỉ gửi tới thành viên của project và rất ít lượt mỗi giờ.
+    if (low.includes('not authorized') || low.includes('error sending'))
+        return 'Kei chưa gửi được email tới địa chỉ này. Cậu đăng nhập bằng mật khẩu nhé (hoặc nhờ quản trị viên kiểm tra cấu hình email).';
     if (low.includes('invalid email') || low.includes('unable to validate email')) return 'Email không hợp lệ.';
     if (low.includes('fetch')) return 'Không kết nối được máy chủ đăng nhập. Kiểm tra mạng giúp Kei nhé.';
     return message;
